@@ -1,0 +1,21 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<!-- VoLTE enablement for Slovak operators (MCC/MNC from the LineageOS generic-ims carrier list:
+     orange_sk 231-01, telekom_sk 231-02, 4ka_sk 231-03, o2_sk 231-06). -->
+<carrier_config_list>
+    <!-- Orange SK -->
+    <carrier_config mcc="231" mnc="01">
+        <boolean name="carrier_volte_available_bool" value="true" />
+    </carrier_config>
+    <!-- Telekom SK -->
+    <carrier_config mcc="231" mnc="02">
+        <boolean name="carrier_volte_available_bool" value="true" />
+    </carrier_config>
+    <!-- 4ka -->
+    <carrier_config mcc="231" mnc="03">
+        <boolean name="carrier_volte_available_bool" value="true" />
+    </carrier_config>
+    <!-- O2 SK -->
+    <carrier_config mcc="231" mnc="06">
+        <boolean name="carrier_volte_available_bool" value="true" />
+    </carrier_config>
+</carrier_config_list>

@@ -1,0 +1,13 @@
+//
+// SPDX-FileCopyrightText: The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+//
+
+// Enables VoLTE/VoWiFi per carrier. krazey CarrierSettings deliberately leaves service
+// enablement to Android CarrierConfig. --keep-raw-values: without it mnc="02" is compiled to
+// the integer 2 and never matches CarrierIdentifier.getMnc() ("02").
+runtime_resource_overlay {
+    name: "CarrierConfigOverlayExynos2100",
+    vendor: true,
+    aaptflags: ["--keep-raw-values"],
+}
