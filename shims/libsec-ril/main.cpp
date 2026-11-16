@@ -5,9 +5,12 @@
 
 #include <dlfcn.h>
 
+#include <unistd.h>
+
 #include <cstddef>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 #include <log/log.h>
@@ -20,6 +23,17 @@
 #ifndef RIL_REQUEST_GET_SMSC_ADDRESS
 #define RIL_REQUEST_GET_SMSC_ADDRESS 100
 #endif
+
+#ifndef RIL_REQUEST_GET_IMSI
+#define RIL_REQUEST_GET_IMSI 11
+#endif
+
+// After an eSIM profile enable (REFRESH type RESET) the Samsung RIL reports the card READY but
+// answers the first GET_IMSI with RADIO_NOT_AVAILABLE within a few ms while RILD is still
+// initialising the SIM. SIMRecords never retries the IMSI, so no operator numeric, no APN and
+// no data until reboot. Retry the request here until the RIL accepts it.
+static constexpr int kImsiRetryMax = 16;
+static constexpr useconds_t kImsiRetryDelayUs = 500 * 1000;
 
 static constexpr char kRealPath[] = "/vendor/lib64/" REAL_LIB_NAME;
 
@@ -44,6 +58,15 @@ static RIL_Env gShimEnv;
 
 static std::mutex gTokenMapMutex;
 static std::unordered_map<RIL_Token, int> gTokenRequestMap;
+
+struct PendingImsi {
+    bool hasAid = false;
+    std::string aid;
+    size_t datalen = 0;
+    RIL_SOCKET_ID socketId = RIL_SOCKET_1;
+    int attempts = 0;
+};
+static std::unordered_map<RIL_Token, PendingImsi> gPendingImsi;
 
 static void* getRealHandle() {
     if (gRealHandle != nullptr) {
@@ -192,14 +215,46 @@ static void shimOnRequest(int request, void* data, size_t datalen, RIL_Token tok
     {
         std::lock_guard<std::mutex> lock(gTokenMapMutex);
         gTokenRequestMap[token] = request;
+        if (request == RIL_REQUEST_GET_IMSI) {
+            // Keep a deep copy of the request (data is only valid during this call).
+            PendingImsi pending;
+            pending.datalen = datalen;
+            pending.socketId = socketId;
+            if (data != nullptr && datalen == sizeof(char*)) {
+                const char* aid = *static_cast<char**>(data);
+                if (aid != nullptr) {
+                    pending.hasAid = true;
+                    pending.aid = aid;
+                }
+            }
+            gPendingImsi[token] = std::move(pending);
+        }
     }
 
     gRealOnRequest(request, data, datalen, token, socketId);
 }
 
+static void retryImsi(RIL_Token token, PendingImsi pending) {
+    usleep(kImsiRetryDelayUs);
+    {
+        std::lock_guard<std::mutex> lock(gTokenMapMutex);
+        gTokenRequestMap[token] = RIL_REQUEST_GET_IMSI;
+        gPendingImsi[token] = pending;
+    }
+    ALOGI("sec-ril-shim: GET_IMSI retry %d/%d", pending.attempts, kImsiRetryMax);
+    if (pending.hasAid) {
+        char* args[1] = {const_cast<char*>(pending.aid.c_str())};
+        gRealOnRequest(RIL_REQUEST_GET_IMSI, args, pending.datalen, token, pending.socketId);
+    } else {
+        gRealOnRequest(RIL_REQUEST_GET_IMSI, nullptr, 0, token, pending.socketId);
+    }
+}
+
 static void shimOnRequestComplete(RIL_Token token, RIL_Errno error, void* response,
                                   size_t responselen) {
     int request = -1;
+    bool retryImsiNow = false;
+    PendingImsi pendingImsi;
     {
         std::lock_guard<std::mutex> lock(gTokenMapMutex);
         auto it = gTokenRequestMap.find(token);
@@ -207,6 +262,23 @@ static void shimOnRequestComplete(RIL_Token token, RIL_Errno error, void* respon
             request = it->second;
             gTokenRequestMap.erase(it);
         }
+        if (request == RIL_REQUEST_GET_IMSI) {
+            auto pit = gPendingImsi.find(token);
+            if (pit != gPendingImsi.end()) {
+                if (error == RIL_E_RADIO_NOT_AVAILABLE && pit->second.attempts < kImsiRetryMax) {
+                    pit->second.attempts++;
+                    pendingImsi = pit->second;
+                    retryImsiNow = true;
+                }
+                gPendingImsi.erase(pit);
+            }
+        }
+    }
+
+    if (retryImsiNow) {
+        // Swallow the error; the framework only sees the final result.
+        std::thread(retryImsi, token, pendingImsi).detach();
+        return;
     }
 
     if (request == RIL_REQUEST_GET_SMSC_ADDRESS && error == RIL_E_SUCCESS && response != nullptr &&
