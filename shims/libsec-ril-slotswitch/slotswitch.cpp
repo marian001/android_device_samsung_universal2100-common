@@ -322,6 +322,11 @@ void* buildSyntheticSlotList() {
 }
 
 void ensureSlotList() {
+    // Disabled by default. Build #5 showed the 3-slot model is wrong for Android: the framework
+    // only has two UiccSlots (the eUICC is reported in physical slot 1 once selected, as on
+    // o1s), drops the third entry and marks logical slot 1 inactive -> no subscription, no
+    // data. Kept for experiments only (setprop persist.vendor.radio.synth_slot_status 1).
+    if (getPropInt("persist.vendor.radio.synth_slot_status", 0) != 1) return;
     if (!resolveSynth() || !isTsds2()) return;
     pthread_mutex_lock(gSlotLock);
     if (slotListEmpty()) {
@@ -376,8 +381,14 @@ extern "C" __attribute__((visibility("default"))) int _ZN10SimManager16DoSetSlot
 extern "C" __attribute__((visibility("default"))) int _ZN10SimManager15DoGetSlotStatusEP7Request(
         void* self, void* request) {
     ensureSlotList();
-    if (gRealDoGetSlotStatus == nullptr && !resolveSynth()) {
-        abort();  // Cannot forward; rild restarts and the interposer is logged.
+    if (gRealDoGetSlotStatus == nullptr) {
+        void* h = dlopen(kRealLib, RTLD_NOW | RTLD_NOLOAD);
+        if (h != nullptr) {
+            gRealDoGetSlotStatus = reinterpret_cast<DoGetSlotStatusFn>(dlsym(h, kDoGetSlotStatus));
+        }
+        if (gRealDoGetSlotStatus == nullptr) {
+            abort();  // Cannot forward; rild restarts and the interposer is logged.
+        }
     }
     return gRealDoGetSlotStatus(self, request);
 }
