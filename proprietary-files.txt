@@ -282,6 +282,7 @@ vendor/etc/vintf/manifest/vendor.samsung.hardware.sysinput-default.xml|c28799b03
 vendor/bin/tzdaemon
 vendor/bin/tzts_daemon
 vendor/etc/init/teegris_v4.rc
+vendor/lib/libteecl.so
 vendor/lib64/libteecl.so
 vendor/lib64/libuuid.so;MODULE_SUFFIX=_vendor
 
