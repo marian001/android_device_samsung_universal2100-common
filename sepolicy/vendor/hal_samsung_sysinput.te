@@ -1,0 +1,6 @@
+# Samsung sysinput HAL (vendor.samsung.hardware.sysinput.ISehSysInputDev)
+binder_call(hal_samsung_sysinput_client, hal_samsung_sysinput_server)
+binder_call(hal_samsung_sysinput_server, hal_samsung_sysinput_client)
+
+hal_attribute_service(hal_samsung_sysinput, hal_samsung_sysinput_service)
+binder_use(hal_samsung_sysinput_server)

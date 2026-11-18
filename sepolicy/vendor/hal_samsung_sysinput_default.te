@@ -1,0 +1,18 @@
+type hal_samsung_sysinput_default, domain;
+hal_server_domain(hal_samsung_sysinput_default, hal_samsung_sysinput)
+
+type hal_samsung_sysinput_default_exec, exec_type, vendor_file_type, file_type;
+init_daemon_domain(hal_samsung_sysinput_default)
+
+# /sys/class/sec/tsp/cmd and friends (fod_enable etc.)
+allow hal_samsung_sysinput_default sysfs_sec_touchscreen:dir r_dir_perms;
+allow hal_samsung_sysinput_default sysfs_sec_touchscreen:file r_file_perms;
+allow hal_samsung_sysinput_default sysfs_sec_touchscreen:lnk_file r_file_perms;
+allow hal_samsung_sysinput_default sysfs_touchscreen_writable:dir r_dir_perms;
+allow hal_samsung_sysinput_default sysfs_touchscreen_writable:file rw_file_perms;
+allow hal_samsung_sysinput_default sysfs_sec_key:dir r_dir_perms;
+allow hal_samsung_sysinput_default sysfs_sec_key:file r_file_perms;
+
+# The HAL enumerates /dev/input
+allow hal_samsung_sysinput_default input_device:dir r_dir_perms;
+allow hal_samsung_sysinput_default input_device:chr_file r_file_perms;
