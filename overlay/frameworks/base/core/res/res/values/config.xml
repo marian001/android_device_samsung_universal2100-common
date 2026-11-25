@@ -154,6 +154,10 @@
          states. -->
     <bool name="config_dozeAlwaysOnDisplayAvailable">true</bool>
 
+    <!-- Always-on display is available but off by default: in DOZE_SUSPEND the
+         display driver (decon) holds a wakeup source, so the device never suspends. -->
+    <bool name="config_dozeAlwaysOnEnabled">false</bool>
+
     <!-- Doze: should the TYPE_PICK_UP_GESTURE sensor be used as a pulse signal. -->
     <bool name="config_dozePulsePickup">true</bool>
 
